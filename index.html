@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Зірочка</title>
+<meta name="theme-color" content="#0e0b28">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{
+  --bg:#0e0b28;
+  --bg-alt:#160f3a;
+  --card:#1e1548;
+  --ink:#f5efdf;
+  --muted:#c6bbe2;
+  --gold:#f0be5e;
+  --gold-deep:#e9a93e;
+  --rose:#f0a8cf;
+  --gold-soft:rgba(240,190,94,.16);
+  --gold-line:rgba(240,190,94,.30);
+  --btn-ink:#221805;
+  --radius:16px;
+  --font-body:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --font-display:Georgia,"Times New Roman",serif;
+  --tabbar-h:calc(60px + env(safe-area-inset-bottom));
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{transition:none!important;animation:none!important}
+}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px;border-radius:4px}
+body{
+  font-family:var(--font-body);
+  background:var(--bg);
+  color:var(--ink);
+  line-height:1.55;
+  font-size:16px;
+  overscroll-behavior:none;
+  background-image:
+    radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,.5) 50%, transparent 51%),
+    radial-gradient(1px 1px at 70% 12%, rgba(255,255,255,.4) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 84% 66%, rgba(240,190,94,.55) 50%, transparent 51%),
+    radial-gradient(2px 2px at 55% 44%, rgba(240,168,207,.4) 50%, transparent 51%),
+    radial-gradient(1px 1px at 40% 80%, rgba(255,255,255,.35) 50%, transparent 51%);
+  background-size:420px 420px;
+}
+body::before{
+  content:"";
+  position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(420px 320px at 85% -6%, rgba(124,77,255,.30), transparent 70%),
+    radial-gradient(380px 300px at -10% 40%, rgba(240,90,180,.13), transparent 70%),
+    radial-gradient(460px 380px at 50% 108%, rgba(64,42,150,.35), transparent 72%);
+}
+h1,h2,h3{font-family:var(--font-display);line-height:1.25}
+button{font-family:inherit;cursor:pointer}
+
+/* ── app frame ── */
+#app{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}
+.appbar{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:14px 16px 8px;
+}
+.appbar .day{font-size:13px;color:var(--muted)}
+.appbar .brand{font-family:var(--font-display);font-size:18px}
+.appbar .brand b{color:var(--gold);font-weight:700}
+.chip{
+  display:inline-flex;align-items:center;gap:6px;
+  background:var(--gold-soft);border:1px solid var(--gold-line);color:var(--gold);
+  border-radius:999px;padding:3px 10px;font-size:13px;white-space:nowrap;
+}
+.btn-star{
+  background:linear-gradient(180deg,#f7d182,var(--gold-deep));
+  color:var(--btn-ink);border:0;border-radius:999px;
+  font-weight:700;font-size:13px;padding:7px 12px;
+  box-shadow:0 3px 14px rgba(240,190,94,.3);
+}
+main{flex:1;padding:8px 16px calc(var(--tabbar-h) + 16px)}
+
+/* ── cards / blocks ── */
+.block{
+  background:linear-gradient(165deg, rgba(240,190,94,.06), rgba(124,77,255,.05)), var(--card);
+  border:1px solid rgba(198,187,226,.14);
+  border-radius:var(--radius);
+  padding:18px;
+  margin-bottom:14px;
+}
+.block h3{font-size:17px;margin-bottom:8px}
+.block .sub{color:var(--muted);font-size:14px}
+.h-orn{color:var(--gold);font-size:12px;letter-spacing:.4em;text-align:center;margin:2px 0 10px;opacity:.7}
+.lead{color:var(--muted);font-size:14px;margin-bottom:12px}
+
+.btn{
+  display:inline-block;width:100%;text-align:center;
+  background:linear-gradient(180deg,#f7d182,var(--gold-deep));
+  color:var(--btn-ink);border:0;
+  font-weight:700;font-size:16px;
+  padding:14px 20px;border-radius:999px;
+  box-shadow:0 5px 22px rgba(240,190,94,.28);
+}
+.btn:active{transform:translateY(1px)}
+.btn-ghost{
+  background:transparent;color:var(--gold);
+  border:1px solid var(--gold-line);box-shadow:none;
+}
+.mt8{margin-top:8px}.mt12{margin-top:12px}
+
+/* ── tarot card ── */
+.deck-row{display:flex;gap:10px;justify-content:center}
+.tcard{
+  perspective:900px;
+  display:block;
+  width:min(104px,26vw);
+  height:calc(min(104px,26vw)*1.6);
+  flex:0 0 auto;
+  background:none;border:0;padding:0;color:inherit;
+  -webkit-tap-highlight-color:transparent;
+}
+.tcard-inner{
+  position:relative;display:block;width:100%;height:100%;
+  transform-style:preserve-3d;
+  transition:transform .6s cubic-bezier(.2,.7,.3,1);
+}
+.tcard.flipped .tcard-inner{transform:rotateY(180deg)}
+.tcard-face{
+  position:absolute;inset:0;border-radius:12px;overflow:hidden;
+  backface-visibility:hidden;-webkit-backface-visibility:hidden;
+  box-shadow:0 6px 20px rgba(0,0,0,.35);
+}
+.tcard-face svg{display:block;width:100%;height:100%}
+.tcard-back .hint{
+  position:absolute;left:0;right:0;bottom:7px;text-align:center;
+  color:var(--muted);font-size:9px;letter-spacing:.12em;text-transform:uppercase;
+}
+.tcard-front{transform:rotateY(180deg)}
+.tcard.locked .tcard-back{filter:grayscale(.4) brightness(.75)}
+.tcard .lock{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:22px;z-index:2}
+.pos-label{color:var(--muted);font-size:12px;text-align:center;margin-top:6px}
+.tmeaning{
+  background:var(--gold-soft);border:1px solid var(--gold-line);
+  border-radius:12px;padding:12px 14px;font-size:14px;margin-top:12px;
+}
+.tmeaning b{color:var(--gold)}
+
+/* ── horoscope ── */
+.horo p{margin-bottom:8px;font-size:15px}
+.horo-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.streak{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--muted)}
+.streak .fire{font-size:20px}
+
+/* ── compat ── */
+.field{margin-bottom:12px}
+.field label{display:block;font-size:13px;color:var(--muted);margin-bottom:5px}
+.field input[type=date],.field input[type=text]{
+  width:100%;padding:12px 14px;border-radius:12px;
+  background:var(--bg-alt);border:1px solid rgba(198,187,226,.2);
+  color:var(--ink);font-size:16px;font-family:inherit;
+  color-scheme:dark;
+}
+.compat-result{
+  background:
+    linear-gradient(150deg,#2b1c63,#150e38) padding-box,
+    linear-gradient(135deg,var(--gold),var(--rose),#7c4dff) border-box;
+  border:1px solid transparent;border-radius:18px;
+  padding:22px;text-align:center;margin-top:14px;
+}
+.compat-result .names{font-family:var(--font-display);font-size:17px}
+.compat-result .pct{font-family:var(--font-display);font-size:46px;color:var(--gold);line-height:1.15}
+.compat-result .verdict{color:var(--muted);font-size:14px}
+
+/* ── diary ── */
+.habit{
+  display:flex;align-items:center;gap:12px;
+  padding:12px 0;border-bottom:1px solid rgba(198,187,226,.12);
+}
+.habit:last-of-type{border-bottom:0}
+.habit input{width:22px;height:22px;accent-color:var(--gold-deep);flex:0 0 auto}
+.habit .hname{flex:1}
+.habit .hnote{font-size:12px;color:var(--muted)}
+
+/* ── paywall sheet ── */
+.sheet-wrap{
+  position:fixed;inset:0;z-index:60;display:none;
+  background:rgba(8,6,26,.7);
+}
+.sheet-wrap.open{display:block}
+.sheet{
+  position:absolute;left:0;right:0;bottom:0;
+  background:var(--bg-alt);
+  border-radius:22px 22px 0 0;
+  border-top:1px solid var(--gold-line);
+  padding:20px 18px calc(18px + env(safe-area-inset-bottom));
+  max-height:86vh;overflow-y:auto;
+}
+.sheet h2{font-size:22px;text-align:center;margin-bottom:4px}
+.sheet .lead{text-align:center}
+.plan-card{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  background:var(--card);border:1px solid rgba(198,187,226,.14);
+  border-radius:14px;padding:14px 16px;margin-bottom:10px;
+  width:100%;color:inherit;text-align:left;
+}
+.plan-card .pname{font-weight:700}
+.plan-card .pdesc{font-size:12.5px;color:var(--muted)}
+.plan-card .pprice{font-family:var(--font-display);color:var(--gold);font-size:18px;white-space:nowrap}
+.plan-card.featured{
+  border-color:var(--gold);
+  box-shadow:0 0 0 1px var(--gold), 0 0 28px rgba(240,190,94,.2);
+  position:relative;
+}
+.plan-card.featured::before{
+  content:"Найвигідніше";
+  position:absolute;top:-9px;left:16px;
+  background:linear-gradient(180deg,#f7d182,var(--gold-deep));color:var(--btn-ink);
+  font-size:10.5px;font-weight:700;border-radius:999px;padding:2px 9px;
+}
+.sheet .close{
+  position:absolute;top:10px;right:14px;
+  background:none;border:0;color:var(--muted);font-size:24px;line-height:1;padding:6px;
+}
+.paynote{font-size:12px;color:var(--muted);text-align:center;margin-top:10px}
+
+/* ── onboarding ── */
+#onboarding{
+  position:fixed;inset:0;z-index:70;
+  background:var(--bg);
+  display:flex;flex-direction:column;justify-content:center;
+  padding:28px 22px calc(28px + env(safe-area-inset-bottom));
+  text-align:center;
+}
+#onboarding .star8{color:var(--gold);font-size:40px;animation:twinkle 3s ease-in-out infinite}
+#onboarding h1{font-size:30px;margin:14px 0 8px}
+#onboarding h1 b{color:var(--gold)}
+#onboarding .lead{font-size:15px;max-width:300px;margin:0 auto 24px}
+#onboarding .field{text-align:left;max-width:320px;margin:0 auto 14px;width:100%}
+#onboarding .btn{max-width:320px;margin:8px auto 0}
+#onboarding .age{font-size:11px;color:var(--muted);opacity:.8;margin-top:18px}
+.sign-reveal{font-size:15px;color:var(--gold);min-height:24px;margin-bottom:4px}
+
+/* ── tabbar ── */
+.tabbar{
+  position:fixed;left:0;right:0;bottom:0;z-index:50;
+  display:flex;
+  background:rgba(14,11,40,.94);
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+  border-top:1px solid rgba(198,187,226,.14);
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.tabbar button{
+  flex:1;background:none;border:0;color:var(--muted);
+  font-size:11px;padding:8px 2px 9px;
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+  -webkit-tap-highlight-color:transparent;
+}
+.tabbar button .ico{font-size:20px;line-height:1.2}
+.tabbar button.active{color:var(--gold)}
+.tabbar button.active .ico{filter:drop-shadow(0 0 8px rgba(240,190,94,.6))}
+
+.locked-note{
+  display:flex;align-items:center;gap:10px;
+  background:var(--gold-soft);border:1px solid var(--gold-line);
+  border-radius:12px;padding:12px 14px;font-size:13.5px;margin-top:12px;
+}
+.hidden{display:none!important}
+.center{text-align:center}
+
+@keyframes twinkle{0%,100%{opacity:.4;transform:scale(.9)}50%{opacity:1;transform:scale(1.08)}}
+@keyframes pop{0%{transform:scale(.94);opacity:0}100%{transform:scale(1);opacity:1}}
+.pop{animation:pop .25s ease}
+</style>
+</head>
+<body>
+
+<div id="onboarding" class="hidden">
+  <div><span class="star8" aria-hidden="true">✦</span></div>
+  <h1>Привіт! Це <b>Зірочка</b> ✨</h1>
+  <p class="lead">Твій щоденний гороскоп, карта дня і сумісність з подругами — українською. Розкажи про себе, і почнемо.</p>
+  <div class="field">
+    <label for="ob-name">Як до тебе звертатися?</label>
+    <input type="text" id="ob-name" maxlength="30" autocomplete="given-name" placeholder="Твоє ім'я">
+  </div>
+  <div class="field">
+    <label for="ob-birth">Дата народження</label>
+    <input type="date" id="ob-birth" min="1940-01-01">
+  </div>
+  <p class="sign-reveal" id="ob-sign" aria-live="polite"></p>
+  <button class="btn" id="ob-go">Дізнатися свій прогноз ✨</button>
+  <p class="age">Розважальний контент · 18+ · Дата потрібна лише для розрахунків</p>
+</div>
+
+<div id="app" class="hidden">
+  <header class="appbar">
+    <div>
+      <div class="brand">Зіро<b>чка</b> <span aria-hidden="true">✨</span></div>
+      <div class="day" id="bar-date"></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="chip" id="bar-sign"></span>
+      <button class="btn-star" id="bar-premium">⭐ Преміум</button>
+    </div>
+  </header>
+  <main id="view" aria-live="polite"></main>
+  <nav class="tabbar" aria-label="Розділи">
+    <button data-tab="today" class="active"><span class="ico" aria-hidden="true">🌅</span>Сьогодні</button>
+    <button data-tab="tarot"><span class="ico" aria-hidden="true">🃏</span>Таро</button>
+    <button data-tab="compat"><span class="ico" aria-hidden="true">👯</span>Сумісність</button>
+    <button data-tab="diary"><span class="ico" aria-hidden="true">📖</span>Щоденник</button>
+  </nav>
+</div>
+
+<div class="sheet-wrap" id="paywall" role="dialog" aria-modal="true" aria-label="Преміум-тарифи">
+  <div class="sheet">
+    <button class="close" id="pw-close" aria-label="Закрити">×</button>
+    <h2>Відкрий усе ✨</h2>
+    <p class="lead">Повні таро-розклади, натальна карта, детальна сумісність і щоденник — без обмежень.</p>
+    <!-- TODO: суми в Stars — плейсхолдери; фінальні ціни фіксуються за результатами smoke-тесту і мають збігатися з bot.py -->
+    <button class="plan-card" data-plan="week">
+      <span><span class="pname">Тиждень</span><br><span class="pdesc">Спробувати все, разовий платіж</span></span>
+      <span class="pprice">59 ⭐</span>
+    </button>
+    <button class="plan-card" data-plan="month">
+      <span><span class="pname">Місяць</span><br><span class="pdesc">Повний доступ на 30 днів</span></span>
+      <span class="pprice">149 ⭐</span>
+    </button>
+    <button class="plan-card featured" data-plan="year">
+      <span><span class="pname">Рік</span><br><span class="pdesc">Рік доступу, без автопродовження</span></span>
+      <span class="pprice">1299 ⭐</span>
+    </button>
+    <p class="paynote">Оплата — в Telegram Stars у чаті з ботом. Розважальний контент · 18+</p>
+    <button class="btn btn-ghost mt8" id="pw-restore">Я вже оплатила — оновити</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ═══ Telegram shim (для перегляду поза Telegram) ═══ */
+const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : {
+  ready(){}, expand(){}, setHeaderColor(){}, setBackgroundColor(){},
+  openTelegramLink(url){ window.open(url, "_blank"); },
+  showAlert(msg){ alert(msg); },
+  HapticFeedback:{ impactOccurred(){}, notificationOccurred(){} },
+  initDataUnsafe:{},
+  CloudStorage:null,
+  isShim:true
+};
+tg.ready(); tg.expand();
+try{ tg.setHeaderColor("#0e0b28"); tg.setBackgroundColor("#0e0b28"); }catch(e){}
+
+const BOT = "zirochka_bot"; // TODO: реальний @username бота
+
+/* ═══ сховище: CloudStorage → localStorage fallback ═══ */
+const store = {
+  async get(key){
+    if (tg.CloudStorage && tg.CloudStorage.getItem){
+      return new Promise(res => tg.CloudStorage.getItem(key, (err,v) => res(err?null:(v||null))));
+    }
+    return localStorage.getItem(key);
+  },
+  async set(key,val){
+    if (tg.CloudStorage && tg.CloudStorage.setItem){
+      return new Promise(res => tg.CloudStorage.setItem(key,val,()=>res()));
+    }
+    localStorage.setItem(key,val);
+  }
+};
+
+/* ═══ зодіак ═══ */
+const SIGNS = [
+  {id:"aries",     name:"Овен",     g:"♈︎", from:[3,21],  to:[4,19],  el:"fire"},
+  {id:"taurus",    name:"Телець",   g:"♉︎", from:[4,20],  to:[5,20],  el:"earth"},
+  {id:"gemini",    name:"Близнюки", g:"♊︎", from:[5,21],  to:[6,20],  el:"air"},
+  {id:"cancer",    name:"Рак",      g:"♋︎", from:[6,21],  to:[7,22],  el:"water"},
+  {id:"leo",       name:"Лев",      g:"♌︎", from:[7,23],  to:[8,22],  el:"fire"},
+  {id:"virgo",     name:"Діва",     g:"♍︎", from:[8,23],  to:[9,22],  el:"earth"},
+  {id:"libra",     name:"Терези",   g:"♎︎", from:[9,23],  to:[10,22], el:"air"},
+  {id:"scorpio",   name:"Скорпіон", g:"♏︎", from:[10,23], to:[11,21], el:"water"},
+  {id:"sagitt",    name:"Стрілець", g:"♐︎", from:[11,22], to:[12,21], el:"fire"},
+  {id:"capri",     name:"Козеріг",  g:"♑︎", from:[12,22], to:[1,19],  el:"earth"},
+  {id:"aqua",      name:"Водолій",  g:"♒︎", from:[1,20],  to:[2,18],  el:"air"},
+  {id:"pisces",    name:"Риби",     g:"♓︎", from:[2,19],  to:[3,20],  el:"water"}
+];
+function signOf(dateStr){
+  const d = new Date(dateStr + "T12:00:00");
+  const m = d.getMonth()+1, day = d.getDate();
+  for (const s of SIGNS){
+    const [fm,fd] = s.from, [tm,td] = s.to;
+    if (fm === tm ? (m===fm && day>=fd && day<=td)
+                  : ((m===fm && day>=fd) || (m===tm && day<=td))) return s;
+  }
+  return SIGNS[9]; // Козеріг (перетин року)
+}
+
+/* ═══ детермінований генератор ═══ */
+function hash(str){
+  let h = 2166136261;
+  for (let i=0;i<str.length;i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+function rng(seed){
+  let a = seed;
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const pick = (arr, r) => arr[Math.floor(r()*arr.length)];
+
+/* ═══ контент (MVP-пул; бойовий контент — конвеєр копірайтерки за планом) ═══ */
+const POOL_ENERGY = [
+  "Сьогодні твоя енергія — як ранкове сонце: м'яка, але впевнена.",
+  "День обіцяє бути спокійним — саме час для маленьких радощів.",
+  "Зірки радять не поспішати: найкраще сьогодні прийде саме до тебе.",
+  "Сьогодні ти помітніша, ніж думаєш, — і цим варто скористатися.",
+  "Енергія дня підтримує сміливі рішення — але без різких рухів.",
+  "Твоя інтуїція сьогодні особливо гостра — довіряй першому відчуттю.",
+  "День гарний для завершення того, що давно відкладалося.",
+  "Сьогодні варто берегти сили: обери одну головну справу."
+];
+const POOL_LOVE = [
+  "У стосунках — час щирості: одне тепле слово змінить багато.",
+  "Хтось думає про тебе частіше, ніж ти здогадуєшся.",
+  "Не бійся зробити перший крок — сьогодні він буде доречним.",
+  "День сприяє глибоким розмовам — не уникай їх.",
+  "Трохи флірту сьогодні точно не зашкодить.",
+  "Серце сьогодні мудріше за голову — послухай його.",
+  "Стара симпатія може нагадати про себе — вирішуй спокійно.",
+  "Найкраще побачення сьогодні — з собою. Побалуй себе."
+];
+const POOL_ADVICE = [
+  "Випий води і напиши тій самій подрузі.",
+  "Одна маленька приємність собі — обов'язково.",
+  "Не читай старі переписки — дивись уперед.",
+  "10 хвилин тиші зроблять більше, ніж здається.",
+  "Скажи «так» спонтанній ідеї.",
+  "Наведи лад в одній маленькій речі.",
+  "Гарний день, щоб попросити про допомогу.",
+  "Усміхнися першою — це працює."
+];
+const POOL_COLORS = ["Золотий","Лавандовий","Смарагдовий","Рожевий","Небесний","Вишневий","Молочний","Опівнічно-синій"];
+
+const ARCANA = [
+  ["0","Блазень","🎈","Новий початок: дозволь собі легкість і трохи авантюри."],
+  ["I","Маг","✨","У тебе вже є все, щоб зробити задумане. Починай."],
+  ["II","Верховна Жриця","🌙","Відповідь усередині — прислухайся до себе."],
+  ["III","Імператриця","🌸","Час турботи й розквіту: подбай про себе і своє."],
+  ["IV","Імператор","🏛️","Структура і порядок сьогодні — твої союзники."],
+  ["V","Ієрофант","📜","Порада від старшої або досвідченої людини буде доречною."],
+  ["VI","Закохані","💞","Вибір серця. Обирай те, що відгукується по-справжньому."],
+  ["VII","Колісниця","🏇","Рух уперед: тримай кермо впевнено — і все вийде."],
+  ["VIII","Сила","🦁","Твоя м'яка сила сьогодні переконливіша за будь-який тиск."],
+  ["IX","Відлюдник","🕯️","Трохи усамітнення допоможе почути головне."],
+  ["X","Колесо Фортуни","🎡","Обставини змінюються на твою користь — будь готова."],
+  ["XI","Справедливість","⚖️","Все стане на свої місця. Чесність — найкраща стратегія."],
+  ["XII","Повішений","🔄","Подивись на ситуацію з іншого боку — і вона зміниться."],
+  ["XIII","Смерть","🦋","Завершення, що звільняє місце для нового. Відпусти."],
+  ["XIV","Поміркованість","🕊️","Баланс і спокій: не квапся, все складається."],
+  ["XV","Диявол","🔗","Перевір, що тебе тримає, — і чи справді воно того варте."],
+  ["XVI","Вежа","⚡","Несподівані зміни — це перезавантаження, а не катастрофа."],
+  ["XVII","Зірка","⭐","Надія і натхнення: твій знак, що все складеться."],
+  ["XVIII","Місяць","🌕","Не все таке, яким здається. Дай собі час роздивитися."],
+  ["XIX","Сонце","☀️","День радості: ділись теплом — воно повернеться."],
+  ["XX","Суд","📯","Час підсумків і другого шансу. Ти готова."],
+  ["XXI","Світ","🌍","Цикл завершено — святкуй і плануй нову мрію."]
+];
+
+/* ═══ карти: генеративний фольк-арт (SVG, без зображень) ═══ */
+const AC = {gold:"#f0be5e", rose:"#f0a8cf", lav:"#b9a8f0", cream:"#f5efdf"};
+const CARD_ACCENT = i => ({2:AC.lav,3:AC.rose,6:AC.rose,8:AC.rose,12:AC.lav,13:AC.lav,15:AC.lav,16:AC.rose,18:AC.lav}[i] || AC.gold);
+
+function ptsStar(cx,cy,spikes,R,r){
+  const pts = [];
+  for (let i=0;i<spikes*2;i++){
+    const rad = i%2===0 ? R : r, a = -Math.PI/2 + Math.PI*i/spikes;
+    pts.push((cx+rad*Math.cos(a)).toFixed(1)+","+(cy+rad*Math.sin(a)).toFixed(1));
+  }
+  return pts.join(" ");
+}
+const star = (cx,cy,R,fill,spikes=8,op=1) => `<polygon points="${ptsStar(cx,cy,spikes,R,R*.42)}" fill="${fill}" opacity="${op}"/>`;
+const dot = (cx,cy,r,fill,op=1) => `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}" opacity="${op}"/>`;
+const st = (d,c,w=1.8) => `<path d="${d}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
+const ring = (cx,cy,r,c,w=1.8,extra="") => `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${c}" stroke-width="${w}" ${extra}/>`;
+const petal = (cx,cy,w,h,c,fillOp=0) => `<path d="M${cx} ${cy} q${w} ${h*.5} 0 ${h} q-${w} ${-h*.5} 0 ${-h} z" stroke="${c}" stroke-width="1.4" fill="${c}" fill-opacity="${fillOp}"/>`;
+const crescent = (cx,cy,R,fill) => `<path d="M${cx} ${cy-R} A${R} ${R} 0 1 0 ${cx} ${cy+R} A${R*1.25} ${R*1.25} 0 0 1 ${cx} ${cy-R} Z" fill="${fill}"/>`;
+const heartP = (cx,cy,s,c) => `<path d="M${cx} ${cy+s*1.15} C${cx-s*1.3} ${cy+s*.3} ${cx-s*.9} ${cy-s*.8} ${cx} ${cy-s*.15} C${cx+s*.9} ${cy-s*.8} ${cx+s*1.3} ${cy+s*.3} ${cx} ${cy+s*1.15} Z" fill="none" stroke="${c}" stroke-width="1.8" stroke-linejoin="round"/>`;
+const lemn = (cx,cy,c) => st(`M${cx-14} ${cy}c0 -7 11 -7 14 0c3 7 14 7 14 0c0 -7 -11 -7 -14 0c-3 7 -14 7 -14 0z`,c);
+function spokes(cx,cy,r1,r2,n,c,w=1.4){
+  let s = "";
+  for (let i=0;i<n;i++){
+    const a = Math.PI*2*i/n - Math.PI/2;
+    s += st(`M${(cx+r1*Math.cos(a)).toFixed(1)} ${(cy+r1*Math.sin(a)).toFixed(1)} L${(cx+r2*Math.cos(a)).toFixed(1)} ${(cy+r2*Math.sin(a)).toFixed(1)}`,c,w);
+  }
+  return s;
+}
+const keyM = c => ring(50,58,5,c)+st("M50 63 v25 M50 84 h5 M50 78 h4",c,1.6);
+const cupM = (cx,cy,c) => st(`M${cx-8} ${cy} h16 l-3 9 h-10 z`,c,1.6);
+
+const EMBLEMS = [
+ a=>star(50,58,9,a)+st("M30 90 q10 -9 20 0 t20 0",a)+dot(42,84,1.2,a,.7)+dot(50,80,1.2,a,.7)+dot(58,84,1.2,a,.7),
+ a=>lemn(50,72,a)+star(50,52,6,a),
+ a=>crescent(50,60,9,a)+st("M38 82 q6 -4 12 -1 v13 q-6 -3 -12 0 z",AC.cream,1.4)+st("M62 82 q-6 -4 -12 -1 v13 q6 -3 12 0 z",AC.cream,1.4),
+ a=>{let s=star(50,70,5,a,4);for(let i=0;i<8;i++){const g=Math.PI*2*i/8;s+=dot((50+15*Math.cos(g)).toFixed(1),(70+15*Math.sin(g)).toFixed(1),2.2,i%2?a:AC.gold,.85)}return s+petal(30,64,3,8,a)+petal(70,64,3,8,a)},
+ a=>st("M36 82 v-12 l8 7 6 -11 6 11 8 -7 v12 z",a)+dot(36,66,1.6,a)+dot(50,60,1.6,a)+dot(64,66,1.6,a)+st("M36 86 h28",a,1.4),
+ a=>`<g transform="rotate(26 50 74)">${keyM(a)}</g><g transform="rotate(-26 50 74)">${keyM(a)}</g>`+star(50,46,4,a,4),
+ a=>heartP(44,72,9,a)+heartP(56,72,9,AC.gold)+star(50,50,5,AC.gold),
+ a=>ring(50,76,11,a)+spokes(50,76,3,11,4,a)+dot(50,76,2.4,a)+st("M38 70 q-10 -2 -14 -12 M62 70 q10 -2 14 -12",a,1.5),
+ a=>heartP(50,76,11,a)+lemn(50,52,AC.gold),
+ a=>st("M43 62 h14 v20 h-14 z M43 62 l7 -7 7 7 M50 55 q0 -5 5 -5",a,1.5)+petal(50,66,3.4,9,AC.gold,.9)+dot(34,74,1,AC.gold,.7)+dot(66,74,1,AC.gold,.7),
+ a=>ring(50,72,16,a)+spokes(50,72,4,16,8,a,1.2)+dot(50,72,3,a)+dot(50,54,1.6,a,.8)+dot(68,72,1.6,a,.8)+dot(50,90,1.6,a,.8)+dot(32,72,1.6,a,.8),
+ a=>st("M50 50 v42 M34 56 h32",a,1.6)+st("M34 56 l-6 12 m6 -12 l6 12",a,1.2)+st("M66 56 l-6 12 m6 -12 l6 12",a,1.2)+st("M26 68 q8 9 16 0 M58 68 q8 9 16 0",a,1.5)+st("M42 92 h16",a,1.6),
+ a=>st("M50 44 v12",a,1.5)+st("M40 56 h20 l-10 24 z",a,1.6)+ring(50,87,5,AC.gold,1.5),
+ a=>st("M50 58 v28",a,1.6)+st("M50 60 q-4 -6 -8 -8 M50 60 q4 -6 8 -8",a,1.3)+`<g transform="rotate(-24 50 68)">${petal(50,64,6,13,a,.2)}</g><g transform="rotate(24 50 68)">${petal(50,64,6,13,a,.2)}</g><g transform="rotate(-38 50 76)">${petal(50,74,5,10,a,.2)}</g><g transform="rotate(38 50 76)">${petal(50,74,5,10,a,.2)}</g>`,
+ a=>cupM(40,58,a)+cupM(60,82,a)+st("M42 70 q12 3 15 10",AC.gold,1.4)+dot(57,78,1,AC.gold,.8),
+ a=>`<ellipse cx="38" cy="72" rx="5.5" ry="8.5" fill="none" stroke="${a}" stroke-width="1.6" transform="rotate(-18 38 72)"/><ellipse cx="50" cy="76" rx="5.5" ry="8.5" fill="none" stroke="${a}" stroke-width="1.6" transform="rotate(14 50 76)"/><ellipse cx="62" cy="72" rx="5.5" ry="8.5" fill="none" stroke="${a}" stroke-width="1.6" stroke-dasharray="3 3" transform="rotate(-14 62 72)"/>`+star(70,56,3,AC.gold,4),
+ a=>st("M42 62 h16 v30 h-16 z",a,1.5)+st("M42 62 V56 h4 v4 h2 v-4 h4 v4 h2 v-4 h4 V62",a,1.3)+`<polygon points="63,42 56,56 62,56 53,72" fill="${AC.gold}" opacity=".9"/>`+dot(36,66,1.2,a,.8)+dot(68,82,1.2,a,.8),
+ a=>star(50,66,15,a)+star(32,50,4,AC.cream,8,.8)+star(68,52,5,AC.cream,8,.7)+star(60,88,3.5,AC.cream,8,.6)+st("M32 98 q6 -5 12 0 t12 0 t12 0",a,1.3),
+ a=>crescent(50,66,13,a)+petal(36,86,2.6,7,a,.5)+petal(50,90,2.6,7,a,.5)+petal(64,86,2.6,7,a,.5)+dot(70,52,1.2,AC.cream,.7)+dot(30,56,1,AC.cream,.6),
+ a=>dot(50,68,10,a,.95)+dot(50,68,4,AC.cream,.9)+spokes(50,68,13,19,12,a,1.4),
+ a=>st("M40 80 c0 -16 20 -16 20 0 l4 5 h-28 z",a,1.6)+dot(50,88,2,a)+st("M30 64 q-5 6 0 12 M70 64 q5 6 0 12",a,1.3),
+ a=>ring(50,70,16,a,1.6,'stroke-dasharray="5 4"')+star(50,70,8,a)+dot(50,50,1.5,a,.8)+dot(70,70,1.5,a,.8)+dot(50,90,1.5,a,.8)+dot(30,70,1.5,a,.8)
+];
+
+function rhombBand(y,c){
+  let s = "";
+  for (let x=26;x<=74;x+=8) s += `<path d="M${x} ${y-2.6} l2.6 2.6 -2.6 2.6 -2.6 -2.6 z" fill="none" stroke="${c}" stroke-width=".9" opacity=".55"/>`;
+  return s;
+}
+function nameLines(name){
+  if (name.length<=11 || !name.includes(" ")) return [name];
+  const i = name.indexOf(" ");
+  return [name.slice(0,i), name.slice(i+1)];
+}
+function cardArt(i){
+  const num = ARCANA[i][0], name = ARCANA[i][1];
+  const a = CARD_ACCENT(i);
+  const lines = nameLines(name);
+  const fs = (lines.length===2 || name.length>10) ? 8.5 : 10;
+  const nameSvg = lines.length===2
+    ? `<text x="50" y="128" text-anchor="middle" font-family="Georgia,serif" font-size="${fs}" fill="${AC.cream}">${lines[0]}</text><text x="50" y="138" text-anchor="middle" font-family="Georgia,serif" font-size="${fs}" fill="${AC.cream}">${lines[1]}</text>`
+    : `<text x="50" y="133" text-anchor="middle" font-family="Georgia,serif" font-size="${fs}" fill="${AC.cream}">${lines[0]}</text>`;
+  return `<svg viewBox="0 0 100 160" aria-hidden="true" focusable="false">
+    <rect width="100" height="160" rx="11" fill="#1b1147"/>
+    ${dot(50,68,27,a,.10)}${dot(50,68,18,a,.08)}
+    <rect x="1" y="1" width="98" height="158" rx="10" fill="none" stroke="${AC.gold}" stroke-opacity=".6"/>
+    <rect x="6" y="6" width="88" height="148" rx="7" fill="none" stroke="${AC.gold}" stroke-opacity=".3"/>
+    ${star(11,12,3,AC.gold,4,.7)}${star(89,12,3,AC.gold,4,.7)}${star(11,148,3,AC.gold,4,.7)}${star(89,148,3,AC.gold,4,.7)}
+    <text x="50" y="21" text-anchor="middle" font-family="Georgia,serif" font-size="8" letter-spacing="2" fill="${AC.gold}" opacity=".85">${num}</text>
+    ${dot(21,36,.9,AC.cream,.7)}${dot(79,32,.7,AC.cream,.5)}${dot(27,52,.7,AC.gold,.6)}${dot(75,50,.9,AC.gold,.5)}${dot(24,98,.7,AC.cream,.4)}${dot(77,100,.7,AC.cream,.4)}
+    ${EMBLEMS[i](a)}
+    ${star(50,114,2.6,a,4,.8)}
+    ${nameSvg}
+    ${rhombBand(146,AC.gold)}
+  </svg>`;
+}
+const BACK_ART = (()=>{
+  let lattice = "";
+  for (let y=26;y<=134;y+=13)
+    for (let x=((y/13)%2 ? 29 : 22.5);x<=78;x+=13)
+      lattice += `<path d="M${x} ${y-4} l4 4 -4 4 -4 -4 z" fill="none" stroke="${AC.gold}" stroke-width=".8" opacity=".16"/>`;
+  return `<svg viewBox="0 0 100 160" aria-hidden="true" focusable="false">
+    <rect width="100" height="160" rx="11" fill="#191049"/>
+    <rect x="1" y="1" width="98" height="158" rx="10" fill="none" stroke="${AC.gold}" stroke-opacity=".55"/>
+    <rect x="6" y="6" width="88" height="148" rx="7" fill="none" stroke="${AC.gold}" stroke-opacity=".25"/>
+    ${lattice}
+    ${dot(50,78,17,"#191049",1)}${dot(50,78,17,AC.gold,.08)}
+    ${ring(50,78,17,AC.gold,1,'stroke-opacity=".5"')}
+    ${star(50,78,11,AC.gold,8,.95)}
+    ${star(50,78,4,"#191049",4,.9)}
+  </svg>`;
+})();
+
+const ELEM_BASE = {
+  "fire|fire":88,"earth|earth":88,"air|air":88,"water|water":88,
+  "air|fire":84,"fire|air":84,"earth|water":84,"water|earth":84,
+  "air|water":72,"water|air":72,"earth|fire":68,"fire|earth":68,
+  "air|earth":66,"earth|air":66,"fire|water":64,"water|fire":64
+};
+const VERDICTS = [
+  [90,"Космічний збіг! Ви — команда мрії ✨"],
+  [80,"Ви на одній хвилі — тримайтеся разом"],
+  [70,"Гарний тандем: різні, але вам це пасує"],
+  [60,"Є над чим працювати — але ж цікаво!"],
+  [0,"Протилежності притягуються. Іноді 🙂"]
+];
+
+/* ═══ стан ═══ */
+let S = {
+  name:"", birth:"", premium:false,
+  streak:{count:0,last:""},
+  habits:{},           // {"2026-07-11":{h0:true,...}}
+  flipped:{}           // {"card_2026-07-11":true, "love_2026-07-11_0":true}
+};
+const todayStr = () => {
+  const d = new Date();
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+};
+const UA_DAYS = ["неділя","понеділок","вівторок","середа","четвер","п'ятниця","субота"];
+const UA_MONTHS = ["січня","лютого","березня","квітня","травня","червня","липня","серпня","вересня","жовтня","листопада","грудня"];
+function uaDate(){
+  const d = new Date();
+  return UA_DAYS[d.getDay()]+", "+d.getDate()+" "+UA_MONTHS[d.getMonth()];
+}
+function esc(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+async function loadState(){
+  try{ const raw = await store.get("zirochka_state"); if (raw) S = Object.assign(S, JSON.parse(raw)); }catch(e){}
+}
+async function saveState(){ try{ await store.set("zirochka_state", JSON.stringify(S)); }catch(e){} }
+
+function bumpStreak(){
+  const t = todayStr();
+  if (S.streak.last === t) return;
+  const y = new Date(); y.setDate(y.getDate()-1);
+  const yStr = y.getFullYear()+"-"+String(y.getMonth()+1).padStart(2,"0")+"-"+String(y.getDate()).padStart(2,"0");
+  S.streak.count = (S.streak.last === yStr) ? S.streak.count+1 : 1;
+  S.streak.last = t;
+  saveState();
+}
+
+/* ═══ рендери вкладок ═══ */
+const view = document.getElementById("view");
+
+function tCardHTML(id, arcIdx, flipped, locked, posLabel){
+  const name = ARCANA[arcIdx][1];
+  return `
+  <div>
+    <button class="tcard ${flipped?"flipped":""} ${locked?"locked":""}" data-card="${id}" ${locked?'data-locked="1"':""} aria-label="${locked?"Карта закрита — доступно в преміум":"Карта: "+esc(name)}">
+      ${locked?'<span class="lock" aria-hidden="true">🔒</span>':""}
+      <span class="tcard-inner">
+        <span class="tcard-face tcard-back">${BACK_ART}<span class="hint">торкнись</span></span>
+        <span class="tcard-face tcard-front">${cardArt(arcIdx)}</span>
+      </span>
+    </button>
+    ${posLabel?`<div class="pos-label">${esc(posLabel)}</div>`:""}
+  </div>`;
+}
+
+function renderToday(){
+  const sign = signOf(S.birth);
+  const t = todayStr();
+  const r = rng(hash(t+"|"+sign.id));
+  const energy = pick(POOL_ENERGY,r), love = pick(POOL_LOVE,r), advice = pick(POOL_ADVICE,r);
+  const lucky = 1+Math.floor(r()*9), color = pick(POOL_COLORS,r);
+  const cardId = "card_"+t;
+  const arcIdx = Math.floor(rng(hash(t+"|"+S.birth+"|day"))()*ARCANA.length);
+  const arc = ARCANA[arcIdx];
+  const flipped = !!S.flipped[cardId];
+  view.innerHTML = `
+    <div class="block horo pop">
+      <div class="h-orn" aria-hidden="true">✦ ✧ ✦</div>
+      <h3>${esc(S.name)}, твій день ${sign.g}</h3>
+      <p>${energy}</p>
+      <p>💞 ${love}</p>
+      <p>🌿 Порада: ${advice}</p>
+      <div class="horo-chips">
+        <span class="chip">Число дня: ${lucky}</span>
+        <span class="chip">Колір: ${color}</span>
+      </div>
+    </div>
+    <div class="block center">
+      <h3>Карта дня</h3>
+      <p class="sub">${flipped?"Твоя карта на сьогодні:":"Одна карта щодня — безкоштовно. Торкнись, щоб відкрити."}</p>
+      <div class="deck-row mt12">${tCardHTML(cardId, arcIdx, flipped, false, "")}</div>
+      <div class="tmeaning ${flipped?"":"hidden"}" id="day-meaning"><b>${esc(arc[1])}.</b> ${esc(arc[3])}</div>
+    </div>
+    <div class="block streak">
+      <span class="fire" aria-hidden="true">🔥</span>
+      <span>Твоя серія: <b>${S.streak.count} ${S.streak.count===1?"день":(S.streak.count<5?"дні":"днів")}</b> поспіль. Повертайся щодня!</span>
+    </div>`;
+}
+
+function renderTarot(){
+  const t = todayStr();
+  const rr = rng(hash(t+"|"+S.birth+"|love"));
+  const idx = new Set(); while(idx.size<3) idx.add(Math.floor(rr()*ARCANA.length));
+  const POS = ["Ти","Твоя людина","Ваша історія"];
+  const openMeanings = [...idx].map((ai,i)=>{
+    const id = `love_${t}_${i}`;
+    const locked = !S.premium && i>0;
+    return {id, ai, c: ARCANA[ai], locked, flipped: !!S.flipped[id], pos: POS[i]};
+  });
+  view.innerHTML = `
+    <div class="block pop">
+      <div class="h-orn" aria-hidden="true">✦ ✧ ✦</div>
+      <h3 class="center">Розклад на кохання</h3>
+      <p class="sub center">Три карти про твої стосунки — сьогоднішній погляд зірок.</p>
+      <div class="deck-row mt12">
+        ${openMeanings.map(o=>tCardHTML(o.id,o.ai,o.flipped,o.locked,o.pos)).join("")}
+      </div>
+      <div id="love-meanings">
+        ${openMeanings.filter(o=>o.flipped&&!o.locked).map(o=>`<div class="tmeaning"><b>${esc(o.pos)} — ${esc(o.c[1])}.</b> ${esc(o.c[3])}</div>`).join("")}
+      </div>
+      ${S.premium?"":`
+      <div class="locked-note"><span aria-hidden="true">🔒</span><span>Повний розклад із трьох карт — у преміум. Перша карта — безкоштовно щодня.</span></div>
+      <button class="btn mt12" data-open-paywall>Відкрити всі карти ⭐</button>`}
+    </div>`;
+}
+
+function renderCompat(){
+  view.innerHTML = `
+    <div class="block pop">
+      <div class="h-orn" aria-hidden="true">✦ ✧ ✦</div>
+      <h3 class="center">Сумісність з подругою</h3>
+      <p class="sub center">Введи дату народження подруги — і дізнайтесь, наскільки ви на одній хвилі.</p>
+      <div class="field mt12">
+        <label for="cp-name">Ім'я подруги</label>
+        <input type="text" id="cp-name" maxlength="30" placeholder="Даша">
+      </div>
+      <div class="field">
+        <label for="cp-birth">Її дата народження</label>
+        <input type="date" id="cp-birth" min="1940-01-01">
+      </div>
+      <button class="btn" id="cp-go">Перевірити ✨</button>
+      <p class="sub mt8" style="font-size:12px">Дата подруги використовується лише для розрахунку і не зберігається.</p>
+      <div id="cp-result"></div>
+    </div>`;
+}
+
+function renderDiary(){
+  const t = todayStr();
+  const HABITS = [
+    ["h0","Ранкова подяка","1 хвилина: за що ти вдячна сьогодні?"],
+    ["h1","Склянка води","Маленький ритуал турботи про себе"],
+    ["h2","Крок до мрії","Одна дія для великої цілі"]
+  ];
+  const day = S.habits[t] || {};
+  view.innerHTML = `
+    <div class="block pop">
+      <div class="h-orn" aria-hidden="true">✦ ✧ ✦</div>
+      <h3>Щоденник · сьогодні</h3>
+      <p class="sub">Маленькі кроки щодня. Відзначай — і тримай серію 🔥</p>
+      <div class="mt12">
+      ${HABITS.map(([id,name,note])=>`
+        <label class="habit">
+          <input type="checkbox" data-habit="${id}" ${day[id]?"checked":""}>
+          <span class="hname">${name}<br><span class="hnote">${note}</span></span>
+        </label>`).join("")}
+      </div>
+      ${S.premium?"":`
+      <div class="locked-note"><span aria-hidden="true">🔒</span><span>Історія, статистика і власні звички — у преміум.</span></div>
+      <button class="btn mt12" data-open-paywall>Відкрити щоденник повністю ⭐</button>`}
+    </div>`;
+}
+
+const TABS = {today:renderToday, tarot:renderTarot, compat:renderCompat, diary:renderDiary};
+let activeTab = "today";
+function showTab(tab){
+  activeTab = tab;
+  document.querySelectorAll(".tabbar button").forEach(b=>b.classList.toggle("active", b.dataset.tab===tab));
+  TABS[tab]();
+}
+
+/* ═══ події ═══ */
+document.querySelector(".tabbar").addEventListener("click", e=>{
+  const b = e.target.closest("button[data-tab]"); if(!b) return;
+  tg.HapticFeedback.impactOccurred("light");
+  showTab(b.dataset.tab);
+});
+
+view.addEventListener("click", e=>{
+  const payBtn = e.target.closest("[data-open-paywall]");
+  if (payBtn){ openPaywall(); return; }
+
+  const card = e.target.closest(".tcard");
+  if (card){
+    if (card.dataset.locked){ openPaywall(); return; }
+    if (!card.classList.contains("flipped")){
+      card.classList.add("flipped");
+      S.flipped[card.dataset.card] = true;
+      saveState();
+      tg.HapticFeedback.impactOccurred("medium");
+      setTimeout(()=>showTab(activeTab), 650);
+    }
+    return;
+  }
+
+  if (e.target.id === "cp-go"){
+    const nameEl = document.getElementById("cp-name");
+    const bEl = document.getElementById("cp-birth");
+    if (!bEl.value){ tg.showAlert("Введи дату народження подруги 🙂"); return; }
+    const friendName = nameEl.value.trim() || "Подруга";
+    const s1 = signOf(S.birth), s2 = signOf(bEl.value);
+    const base = ELEM_BASE[s1.el+"|"+s2.el] || 72;
+    const jitter = Math.floor(rng(hash([S.birth,bEl.value].sort().join("|")))()*13)-6;
+    const pct = Math.max(48, Math.min(99, base+jitter));
+    const verdict = VERDICTS.find(v=>pct>=v[0])[1];
+    const shareText = `✨ Ми з ${friendName} сумісні на ${pct}%! ${verdict}\nПеревір свою сумісність у Зірочці:`;
+    document.getElementById("cp-result").innerHTML = `
+      <div class="compat-result pop">
+        <div class="names">${esc(S.name)} ${s1.g} + ${esc(friendName)} ${s2.g}</div>
+        <div class="pct">${pct}%</div>
+        <div class="verdict">${esc(verdict)}</div>
+        <button class="btn mt12" id="cp-share" data-share="${esc(shareText)}">Поділитися 💌</button>
+      </div>`;
+    tg.HapticFeedback.notificationOccurred("success");
+    return;
+  }
+
+  const share = e.target.closest("[data-share]");
+  if (share){
+    const url = "https://t.me/"+BOT+"?start=compat_share";
+    tg.openTelegramLink("https://t.me/share/url?url="+encodeURIComponent(url)+"&text="+encodeURIComponent(share.dataset.share));
+    return;
+  }
+});
+
+view.addEventListener("change", e=>{
+  const cb = e.target.closest("[data-habit]");
+  if (cb){
+    const t = todayStr();
+    S.habits[t] = S.habits[t] || {};
+    S.habits[t][cb.dataset.habit] = cb.checked;
+    saveState();
+    tg.HapticFeedback.impactOccurred("light");
+  }
+});
+
+/* ═══ paywall ═══ */
+const paywall = document.getElementById("paywall");
+function openPaywall(){ paywall.classList.add("open"); tg.HapticFeedback.impactOccurred("light"); }
+function closePaywall(){ paywall.classList.remove("open"); }
+document.getElementById("pw-close").addEventListener("click", closePaywall);
+paywall.addEventListener("click", e=>{ if(e.target===paywall) closePaywall(); });
+document.getElementById("bar-premium").addEventListener("click", openPaywall);
+paywall.querySelectorAll("[data-plan]").forEach(b=>{
+  b.addEventListener("click", ()=>{
+    // Інвойс Telegram Stars виставляє бот у чаті (див. bot.py) — mini-app веде туди deep-link'ом
+    tg.openTelegramLink("https://t.me/"+BOT+"?start=pay_"+b.dataset.plan);
+  });
+});
+document.getElementById("pw-restore").addEventListener("click", async ()=>{
+  // TODO v2: перевірка покупки через бекенд (initData → API бота), а не довіра на слово
+  S.premium = true; await saveState(); closePaywall(); showTab(activeTab);
+  tg.showAlert("Дякуємо! Преміум увімкнено ✨ (v1: перевірка оплати — у наступній версії)");
+});
+
+/* ═══ онбординг і старт ═══ */
+const ob = document.getElementById("onboarding");
+const app = document.getElementById("app");
+
+function startApp(){
+  ob.classList.add("hidden");
+  app.classList.remove("hidden");
+  const sign = signOf(S.birth);
+  document.getElementById("bar-date").textContent = uaDate();
+  document.getElementById("bar-sign").textContent = sign.g+" "+sign.name;
+  bumpStreak();
+  showTab("today");
+}
+
+document.getElementById("ob-birth").addEventListener("change", e=>{
+  if (!e.target.value) return;
+  const s = signOf(e.target.value);
+  document.getElementById("ob-sign").textContent = "Твій знак — "+s.name+" "+s.g;
+});
+document.getElementById("ob-go").addEventListener("click", async ()=>{
+  const name = document.getElementById("ob-name").value.trim();
+  const birth = document.getElementById("ob-birth").value;
+  if (!name){ tg.showAlert("Напиши, як до тебе звертатися 🙂"); return; }
+  if (!birth){ tg.showAlert("Обери дату народження — без неї зірки мовчать ✨"); return; }
+  S.name = name; S.birth = birth;
+  await saveState();
+  tg.HapticFeedback.notificationOccurred("success");
+  startApp();
+});
+
+(async function boot(){
+  await loadState();
+  if (S.name && S.birth){ startApp(); return; }
+  const tgName = tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.first_name;
+  if (tgName) document.getElementById("ob-name").value = tgName;
+  ob.classList.remove("hidden");
+})();
+</script>
+</body>
+</html>
