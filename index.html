@@ -215,6 +215,37 @@ main{flex:1;padding:8px 16px calc(var(--tabbar-h) + 16px)}
   background:linear-gradient(180deg,#f7d182,var(--gold-deep));color:var(--btn-ink);
   font-size:10.5px;font-weight:700;border-radius:999px;padding:2px 9px;
 }
+.plan-card.founding{
+  border-color:var(--rose);
+  box-shadow:0 0 0 1px var(--rose), 0 0 28px rgba(240,168,207,.22);
+  position:relative;margin-top:14px;
+}
+.plan-card.founding::before{
+  content:"Founding · −50%";
+  position:absolute;top:-9px;left:16px;
+  background:linear-gradient(180deg,var(--rose),#e07bb0);color:#2a0f1e;
+  font-size:10.5px;font-weight:700;border-radius:999px;padding:2px 9px;
+}
+
+/* ── натальна карта ── */
+.natal-rows{text-align:left;font-size:14px}
+.natal-rows div{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid rgba(198,187,226,.12)}
+.natal-rows div:last-child{border-bottom:0}
+.natal-rows .k{color:var(--muted);flex:0 0 auto}
+.field input[type=time]{
+  width:100%;padding:12px 14px;border-radius:12px;
+  background:var(--bg-alt);border:1px solid rgba(198,187,226,.2);
+  color:var(--ink);font-size:16px;font-family:inherit;color-scheme:dark;
+}
+
+/* ── щоденник: історія і власні звички ── */
+.habit-hist{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0;font-size:13px}
+.hist{display:flex;gap:4px}
+.hist span{width:14px;height:14px;border-radius:4px;background:rgba(198,187,226,.15);display:inline-block}
+.hist span.on{background:var(--gold)}
+.addhabit{display:flex;gap:8px;margin-top:12px}
+.addhabit input{flex:1;padding:10px 12px;border-radius:10px;background:var(--bg-alt);border:1px solid rgba(198,187,226,.2);color:var(--ink);font-size:14px;font-family:inherit}
+.hdel{background:none;border:0;color:var(--muted);font-size:16px;padding:0 4px;vertical-align:middle}
 .sheet .close{
   position:absolute;top:10px;right:14px;
   background:none;border:0;color:var(--muted);font-size:24px;line-height:1;padding:6px;
@@ -314,18 +345,20 @@ main{flex:1;padding:8px 16px calc(var(--tabbar-h) + 16px)}
     <button class="close" id="pw-close" aria-label="Закрити">×</button>
     <h2>Відкрий усе ✨</h2>
     <p class="lead">Повні таро-розклади, натальна карта, детальна сумісність і щоденник — без обмежень.</p>
-    <!-- TODO: суми в Stars — плейсхолдери; фінальні ціни фіксуються за результатами smoke-тесту і мають збігатися з bot.py -->
+    <!-- ціни підтягуються з /api/status (PLANS у bot/config.py) — тут лише фолбек-плейсхолдери -->
+    <div id="pw-banner"></div>
+    <div id="pw-founding"></div>
     <button class="plan-card" data-plan="week">
       <span><span class="pname">Тиждень</span><br><span class="pdesc">Спробувати все, разовий платіж</span></span>
-      <span class="pprice">59 ⭐</span>
+      <span class="pprice" data-price="week">59 ⭐</span>
     </button>
     <button class="plan-card" data-plan="month">
-      <span><span class="pname">Місяць</span><br><span class="pdesc">Повний доступ на 30 днів</span></span>
-      <span class="pprice">149 ⭐</span>
+      <span><span class="pname">Місяць</span><br><span class="pdesc">Підписка, автопродовження щомісяця</span></span>
+      <span class="pprice" data-price="month">149 ⭐</span>
     </button>
     <button class="plan-card featured" data-plan="year">
       <span><span class="pname">Рік</span><br><span class="pdesc">Рік доступу, без автопродовження</span></span>
-      <span class="pprice">1299 ⭐</span>
+      <span class="pprice" data-price="year">1299 ⭐</span>
     </button>
     <p class="paynote">Оплата — в Telegram Stars у чаті з ботом. Розважальний контент · 18+</p>
     <button class="btn btn-ghost mt8" id="pw-restore">Я вже оплатила — оновити</button>
@@ -348,7 +381,82 @@ const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : 
 tg.ready(); tg.expand();
 try{ tg.setHeaderColor("#0e0b28"); tg.setBackgroundColor("#0e0b28"); }catch(e){}
 
-const BOT = "zirochka_bot"; // TODO: реальний @username бота
+const BOT = "yourzirochka_bot"; // TODO: реальний @username бота
+const API = ""; // TODO: базовий URL API бота (bot.py, порт 8080), напр. "https://api.zirochka.app"; "" = той самий origin
+
+/* ═══ оплата: API бота + нативний openInvoice ═══ */
+async function apiFetch(path, opts){
+  if (!tg.initData){ const e = new Error("outside telegram"); e.status = 0; throw e; }
+  const res = await fetch(API + path, Object.assign({
+    headers: {Authorization: "tma " + tg.initData, "Content-Type": "application/json"}
+  }, opts || {}));
+  if (!res.ok){ const e = new Error("api " + res.status); e.status = res.status; throw e; }
+  return res.json();
+}
+function sendEvent(event, offer){
+  // воронка-аналитика (Фаза A): paywall_view → plan_click → invoice → paid, з розбивкою по ОС
+  if (!tg.initData) return;
+  fetch(API + "/api/event", {method: "POST",
+    headers: {Authorization: "tma " + tg.initData, "Content-Type": "application/json"},
+    body: JSON.stringify({event: event, offer: offer || null, os: tg.platform || "unknown"})
+  }).catch(()=>{});
+}
+function loveActive(){
+  return !!(S.srv && S.srv.love_until && new Date(S.srv.love_until) > new Date());
+}
+async function refreshPremium(silent){
+  try{
+    const stt = await apiFetch("/api/status");
+    const was = S.premium;
+    S.srv = stt;
+    S.premium = !!stt.premium;
+    await saveState();
+    renderPaywall();
+    if (S.premium !== was) showTab(activeTab);
+    if (!silent){
+      tg.showAlert(S.premium
+        ? "Преміум активний ✨"
+        : "Оплату поки не видно. Якщо ти щойно оплатила — зачекай хвилинку і спробуй ще раз.");
+    }
+    return S.premium;
+  }catch(err){
+    if (!silent) tg.showAlert("Не вдалося перевірити оплату. Спробуй пізніше або напиши боту /paysupport.");
+    return S.premium;
+  }
+}
+async function joinWaitlist(plan){
+  // чекпойнт дня 14: пауза оплат → лист очікування без списань
+  try{
+    await apiFetch("/api/waitlist", {method: "POST", body: JSON.stringify({plan: plan})});
+    tg.showAlert("Оплати тимчасово на паузі. Ти в черзі 💛 — напишемо першою, щойно все запрацює.");
+  }catch(err){
+    tg.openTelegramLink("https://t.me/" + BOT + "?start=pay_" + plan);
+  }
+  closePaywall();
+}
+async function buyPlan(plan){
+  sendEvent("plan_click", plan);
+  if (S.srv && S.srv.payments_paused){ joinWaitlist(plan); return; }
+  try{
+    const inv = await apiFetch("/api/invoice?plan=" + encodeURIComponent(plan)
+      + "&os=" + encodeURIComponent(tg.platform || "unknown"));
+    if (inv.link && typeof tg.openInvoice === "function"){
+      tg.openInvoice(inv.link, status => {
+        if (status === "paid"){
+          tg.HapticFeedback.notificationOccurred("success");
+          closePaywall();
+          setTimeout(()=>refreshPremium(true), 800);
+        }
+      });
+      return;
+    }
+  }catch(err){
+    if (err.status === 409){ joinWaitlist(plan); return; }
+    if (err.status === 410){ tg.showAlert("Founding-місця закінчилися 😔 Дивись інші тарифи."); renderPaywall(); return; }
+    /* API недоступний — фолбек на інвойс у чаті з ботом */
+  }
+  tg.openTelegramLink("https://t.me/" + BOT + "?start=pay_" + plan);
+}
 
 /* ═══ сховище: CloudStorage → localStorage fallback ═══ */
 const store = {
@@ -589,14 +697,42 @@ const VERDICTS = [
 /* ═══ стан ═══ */
 let S = {
   name:"", birth:"", premium:false,
-  streak:{count:0,last:""},
+  srv:null,            // останній /api/status: love_until, founding_left, prices, paused…
+  streak:{count:0,last:"",candleWeek:null},
   habits:{},           // {"2026-07-11":{h0:true,...}}
+  customHabits:[],     // власні звички (преміум)
   flipped:{}           // {"card_2026-07-11":true, "love_2026-07-11_0":true}
 };
-const todayStr = () => {
-  const d = new Date();
+function dstr(d){
   return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
-};
+}
+const todayStr = () => dstr(new Date());
+function isoWeekKey(date){
+  const t = new Date(date); t.setHours(0,0,0,0);
+  t.setDate(t.getDate() + 3 - ((t.getDay() + 6) % 7));
+  const w1 = new Date(t.getFullYear(), 0, 4);
+  return t.getFullYear() + "-W" + String(1 + Math.round(((t - w1) / 86400000 - 3 + ((w1.getDay() + 6) % 7)) / 7)).padStart(2, "0");
+}
+/* стрик із «свічкою»: один пропущений день на тиждень не спалює серію (веха 4) */
+function computeStreak(prev, tDate){
+  const t = dstr(tDate);
+  if (prev.last === t) return prev;
+  const y = new Date(tDate); y.setDate(y.getDate()-1);
+  const d2 = new Date(tDate); d2.setDate(d2.getDate()-2);
+  const wk = isoWeekKey(tDate);
+  const next = {count:1, last:t, candleWeek: prev.candleWeek || null};
+  if (prev.last === dstr(y)) next.count = prev.count + 1;
+  else if (prev.last === dstr(d2) && prev.candleWeek !== wk){
+    next.count = prev.count + 1;
+    next.candleWeek = wk;
+  }
+  return next;
+}
+function candleInfo(){
+  return S.streak.candleWeek === isoWeekKey(new Date())
+    ? "🕯️ Свічка тижня використана — серію врятовано"
+    : "🕯️ Свічка тижня: один пропуск не спалить серію";
+}
 const UA_DAYS = ["неділя","понеділок","вівторок","середа","четвер","п'ятниця","субота"];
 const UA_MONTHS = ["січня","лютого","березня","квітня","травня","червня","липня","серпня","вересня","жовтня","листопада","грудня"];
 function uaDate(){
@@ -611,13 +747,45 @@ async function loadState(){
 async function saveState(){ try{ await store.set("zirochka_state", JSON.stringify(S)); }catch(e){} }
 
 function bumpStreak(){
-  const t = todayStr();
-  if (S.streak.last === t) return;
-  const y = new Date(); y.setDate(y.getDate()-1);
-  const yStr = y.getFullYear()+"-"+String(y.getMonth()+1).padStart(2,"0")+"-"+String(y.getDate()).padStart(2,"0");
-  S.streak.count = (S.streak.last === yStr) ? S.streak.count+1 : 1;
-  S.streak.last = t;
-  saveState();
+  const next = computeStreak(S.streak, new Date());
+  if (next !== S.streak){ S.streak = next; saveState(); }
+}
+
+/* ═══ натальна карта (веха 2): API бота → фолбек локального розрахунку ═══ */
+const ELEMENT_UA = {fire:"Вогонь 🔥", earth:"Земля 🌿", air:"Повітря 🌬️", water:"Вода 🌊"};
+const RULER_UA = {aries:"Марс",taurus:"Венера",gemini:"Меркурій",cancer:"Місяць",leo:"Сонце",virgo:"Меркурій",libra:"Венера",scorpio:"Плутон",sagitt:"Юпітер",capri:"Сатурн",aqua:"Уран",pisces:"Нептун"};
+const STRENGTHS_UA = {fire:"сміливість, енергія, вміння запалювати інших",earth:"надійність, витримка, вміння доводити до кінця",air:"легкість, ідеї, дар спілкування",water:"чуйність, інтуїція, глибина почуттів"};
+function clientNatal(birth, time){
+  const sun = signOf(birth);
+  const moon = SIGNS[Math.floor(rng(hash("natal|"+birth+"|"+(time||"")))()*SIGNS.length)];
+  const asc = time ? SIGNS[Math.floor(rng(hash("asc|"+birth+"|"+time))()*SIGNS.length)] : null;
+  return {source:"local",
+    sun:{ua:sun.name+" "+sun.g}, moon:{ua:moon.name+" "+moon.g},
+    ascendant: asc ? {ua:asc.name+" "+asc.g} : null,
+    element:ELEMENT_UA[sun.el], ruler:RULER_UA[sun.id], strengths:STRENGTHS_UA[sun.el],
+    note: time ? null : "Повна карта з асцендентом розраховується за часом народження."};
+}
+function natalHTML(d){
+  const rows = [["Сонце", d.sun && d.sun.ua], ["Місяць", d.moon && d.moon.ua],
+    ["Асцендент", d.ascendant && d.ascendant.ua], ["Стихія", d.element],
+    ["Планета", d.ruler], ["Сильні сторони", d.strengths]]
+    .filter(r => r[1])
+    .map(r => `<div><span class="k">${r[0]}</span><span>${esc(String(r[1]))}</span></div>`).join("");
+  const src = d.source === "prokerala" ? "точний розрахунок" : "базовий розрахунок за датою";
+  return `<div class="natal-rows pop">${rows}</div><p class="sub mt8">${d.note ? esc(d.note)+" · " : ""}${src}</p>`;
+}
+async function loadNatal(){
+  const box = document.getElementById("natal-body");
+  const tEl = document.getElementById("natal-time");
+  const time = tEl && tEl.value ? tEl.value : "";
+  box.innerHTML = '<p class="sub">Рахуємо за зірками…</p>';
+  let d;
+  try{
+    d = await apiFetch("/api/natal?birth=" + encodeURIComponent(S.birth)
+      + (time ? "&time=" + encodeURIComponent(time) : ""));
+  }catch(err){ d = clientNatal(S.birth, time); }
+  box.innerHTML = natalHTML(d);
+  sendEvent("natal_view");
 }
 
 /* ═══ рендери вкладок ═══ */
@@ -666,9 +834,22 @@ function renderToday(){
       <div class="deck-row mt12">${tCardHTML(cardId, arcIdx, flipped, false, "")}</div>
       <div class="tmeaning ${flipped?"":"hidden"}" id="day-meaning"><b>${esc(arc[1])}.</b> ${esc(arc[3])}</div>
     </div>
+    <div class="block" id="natal-block">
+      <h3>Натальна карта 🌌</h3>
+      ${S.premium ? `
+      <p class="sub">Хто ти за зірками — розрахунок за твоєю датою народження.</p>
+      <div class="field mt8">
+        <label for="natal-time">Час народження (якщо знаєш — карта точніша)</label>
+        <input type="time" id="natal-time">
+      </div>
+      <button class="btn" id="natal-go">Розрахувати ✨</button>
+      <div id="natal-body" class="mt12"></div>` : `
+      <p class="sub">Сонце, Місяць, асцендент і твої сильні сторони — повний розбір у преміум.</p>
+      <button class="btn mt12" data-open-paywall>Відкрити преміум ⭐</button>`}
+    </div>
     <div class="block streak">
       <span class="fire" aria-hidden="true">🔥</span>
-      <span>Твоя серія: <b>${S.streak.count} ${S.streak.count===1?"день":(S.streak.count<5?"дні":"днів")}</b> поспіль. Повертайся щодня!</span>
+      <span>Твоя серія: <b>${S.streak.count} ${S.streak.count===1?"день":(S.streak.count<5?"дні":"днів")}</b> поспіль.<br><span style="font-size:12px">${candleInfo()}</span></span>
     </div>`;
 }
 
@@ -677,11 +858,23 @@ function renderTarot(){
   const rr = rng(hash(t+"|"+S.birth+"|love"));
   const idx = new Set(); while(idx.size<3) idx.add(Math.floor(rr()*ARCANA.length));
   const POS = ["Ти","Твоя людина","Ваша історія"];
+  const full = S.premium || loveActive();
   const openMeanings = [...idx].map((ai,i)=>{
     const id = `love_${t}_${i}`;
-    const locked = !S.premium && i>0;
+    const locked = !full && i>0;
     return {id, ai, c: ARCANA[ai], locked, flipped: !!S.flipped[id], pos: POS[i]};
   });
+  const loveStars = (S.srv && S.srv.love_stars) || 49;
+  let footer = "";
+  if (!full){
+    footer = `
+      <div class="locked-note"><span aria-hidden="true">🔒</span><span>Повний розклад — у преміум, або разово на 24 години за ${loveStars} ⭐.</span></div>
+      <button class="btn mt12" data-open-paywall>Відкрити все ⭐</button>
+      <button class="btn btn-ghost mt8" id="buy-love">Лише цей розклад — ${loveStars} ⭐</button>`;
+  } else if (!S.premium && loveActive()){
+    const u = new Date(S.srv.love_until);
+    footer = `<div class="locked-note"><span aria-hidden="true">💞</span><span>Розклад відкрито до ${String(u.getHours()).padStart(2,"0")}:${String(u.getMinutes()).padStart(2,"0")} — гарного читання!</span></div>`;
+  }
   view.innerHTML = `
     <div class="block pop">
       <div class="h-orn" aria-hidden="true">✦ ✧ ✦</div>
@@ -693,9 +886,7 @@ function renderTarot(){
       <div id="love-meanings">
         ${openMeanings.filter(o=>o.flipped&&!o.locked).map(o=>`<div class="tmeaning"><b>${esc(o.pos)} — ${esc(o.c[1])}.</b> ${esc(o.c[3])}</div>`).join("")}
       </div>
-      ${S.premium?"":`
-      <div class="locked-note"><span aria-hidden="true">🔒</span><span>Повний розклад із трьох карт — у преміум. Перша карта — безкоштовно щодня.</span></div>
-      <button class="btn mt12" data-open-paywall>Відкрити всі карти ⭐</button>`}
+      ${footer}
     </div>`;
 }
 
@@ -716,32 +907,66 @@ function renderCompat(){
       <button class="btn" id="cp-go">Перевірити ✨</button>
       <p class="sub mt8" style="font-size:12px">Дата подруги використовується лише для розрахунку і не зберігається.</p>
       <div id="cp-result"></div>
+      <button class="btn btn-ghost mt12" id="cp-invite">Запросити подругу в Зірочку 💫</button>
     </div>`;
 }
 
+function habitDefs(){
+  const base = [
+    ["h0","Ранкова подяка","1 хвилина: за що ти вдячна сьогодні?",false],
+    ["h1","Склянка води","Маленький ритуал турботи про себе",false],
+    ["h2","Крок до мрії","Одна дія для великої цілі",false]
+  ];
+  return base.concat((S.customHabits||[]).map((name,i)=>["c"+i, name, "Твоя звичка", true]));
+}
+function lastNDates(n){
+  const out = [];
+  for (let i=n-1;i>=0;i--){ const d = new Date(); d.setDate(d.getDate()-i); out.push(dstr(d)); }
+  return out;
+}
 function renderDiary(){
   const t = todayStr();
-  const HABITS = [
-    ["h0","Ранкова подяка","1 хвилина: за що ти вдячна сьогодні?"],
-    ["h1","Склянка води","Маленький ритуал турботи про себе"],
-    ["h2","Крок до мрії","Одна дія для великої цілі"]
-  ];
+  const defs = habitDefs();
   const day = S.habits[t] || {};
+  let premiumPart = "";
+  if (S.premium){
+    const days7 = lastNDates(7);
+    let done = 0, total = 0;
+    const histRows = defs.map(([id,name])=>{
+      const cells = days7.map(d=>{
+        const on = !!(S.habits[d]||{})[id];
+        total++; if (on) done++;
+        return `<span class="${on?"on":""}"></span>`;
+      }).join("");
+      return `<div class="habit-hist"><span>${esc(name)}</span><span class="hist">${cells}</span></div>`;
+    }).join("");
+    const pct = total ? Math.round(done/total*100) : 0;
+    premiumPart = `
+      <div class="addhabit">
+        <input type="text" id="new-habit" maxlength="40" placeholder="Нова звичка…">
+        <button class="btn btn-ghost" id="add-habit" style="width:auto;padding:10px 16px">Додати</button>
+      </div>
+      <h3 class="mt12">Останні 7 днів · виконано ${pct}%</h3>
+      <div class="mt8">${histRows}</div>
+      <p class="sub mt8">${candleInfo()}</p>`;
+  } else {
+    premiumPart = `
+      <div class="locked-note"><span aria-hidden="true">🔒</span><span>Історія, статистика і власні звички — у преміум.</span></div>
+      <button class="btn mt12" data-open-paywall>Відкрити щоденник повністю ⭐</button>`;
+  }
   view.innerHTML = `
     <div class="block pop">
       <div class="h-orn" aria-hidden="true">✦ ✧ ✦</div>
       <h3>Щоденник · сьогодні</h3>
       <p class="sub">Маленькі кроки щодня. Відзначай — і тримай серію 🔥</p>
       <div class="mt12">
-      ${HABITS.map(([id,name,note])=>`
+      ${defs.map(([id,name,note,custom])=>`
         <label class="habit">
           <input type="checkbox" data-habit="${id}" ${day[id]?"checked":""}>
-          <span class="hname">${name}<br><span class="hnote">${note}</span></span>
+          <span class="hname">${esc(name)}${custom&&S.premium?` <button class="hdel" data-del-habit="${id}" aria-label="Видалити звичку ${esc(name)}">×</button>`:""}<br><span class="hnote">${esc(note)}</span></span>
         </label>`).join("")}
       </div>
-      ${S.premium?"":`
-      <div class="locked-note"><span aria-hidden="true">🔒</span><span>Історія, статистика і власні звички — у преміум.</span></div>
-      <button class="btn mt12" data-open-paywall>Відкрити щоденник повністю ⭐</button>`}
+      ${premiumPart}
     </div>`;
 }
 
@@ -763,6 +988,34 @@ document.querySelector(".tabbar").addEventListener("click", e=>{
 view.addEventListener("click", e=>{
   const payBtn = e.target.closest("[data-open-paywall]");
   if (payBtn){ openPaywall(); return; }
+
+  const del = e.target.closest("[data-del-habit]");
+  if (del){
+    e.preventDefault();
+    const i = parseInt(del.dataset.delHabit.slice(1), 10);
+    S.customHabits.splice(i, 1);
+    saveState(); showTab("diary");
+    return;
+  }
+  if (e.target.id === "add-habit"){
+    const inp = document.getElementById("new-habit");
+    const name = (inp.value || "").trim();
+    if (!name){ tg.showAlert("Напиши назву звички 🙂"); return; }
+    S.customHabits = S.customHabits || [];
+    S.customHabits.push(name);
+    saveState(); showTab("diary");
+    return;
+  }
+  if (e.target.id === "natal-go"){ loadNatal(); return; }
+  if (e.target.id === "buy-love"){ sendEvent("love_click", "love"); buyPlan("love"); return; }
+  if (e.target.id === "cp-invite"){
+    sendEvent("share_compat", "invite");
+    const uid = tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id;
+    const link = "https://t.me/" + BOT + (uid ? "?start=ref_" + uid : "?start=compat_share");
+    tg.openTelegramLink("https://t.me/share/url?url=" + encodeURIComponent(link)
+      + "&text=" + encodeURIComponent("Приєднуйся до Зірочки — перевіримо нашу сумісність за зірками ✨"));
+    return;
+  }
 
   const card = e.target.closest(".tcard");
   if (card){
@@ -820,21 +1073,53 @@ view.addEventListener("change", e=>{
 
 /* ═══ paywall ═══ */
 const paywall = document.getElementById("paywall");
-function openPaywall(){ paywall.classList.add("open"); tg.HapticFeedback.impactOccurred("light"); }
+function renderPaywall(){
+  const srv = S.srv || {};
+  if (srv.prices){
+    paywall.querySelectorAll("[data-price]").forEach(el=>{
+      const p = srv.prices[el.dataset.price];
+      if (p) el.textContent = p + " ⭐";
+    });
+  }
+  const banner = document.getElementById("pw-banner");
+  banner.innerHTML = srv.payments_paused
+    ? '<div class="locked-note"><span aria-hidden="true">⏸️</span><span>Оплати тимчасово на паузі — натисни тариф, і ми поставимо тебе в чергу.</span></div>'
+    : "";
+  const f = document.getElementById("pw-founding");
+  if (srv.founding_left > 0){
+    f.innerHTML = `
+      <button class="plan-card founding" data-plan="founding">
+        <span><span class="pname">🌟 Founding-рік</span><br>
+        <span class="pdesc">Ціна засновниці · лишилось ${srv.founding_left} з 50${srv.date_x ? " · не запустимось до " + esc(srv.date_x) + " — повернемо Stars" : ""}</span></span>
+        <span class="pprice">${srv.founding_stars || 649} ⭐</span>
+      </button>`;
+  } else {
+    f.innerHTML = "";
+  }
+}
+function openPaywall(){
+  renderPaywall();
+  sendEvent("paywall_view", activeTab);
+  paywall.classList.add("open");
+  tg.HapticFeedback.impactOccurred("light");
+}
 function closePaywall(){ paywall.classList.remove("open"); }
 document.getElementById("pw-close").addEventListener("click", closePaywall);
-paywall.addEventListener("click", e=>{ if(e.target===paywall) closePaywall(); });
-document.getElementById("bar-premium").addEventListener("click", openPaywall);
-paywall.querySelectorAll("[data-plan]").forEach(b=>{
-  b.addEventListener("click", ()=>{
-    // Інвойс Telegram Stars виставляє бот у чаті (див. bot.py) — mini-app веде туди deep-link'ом
-    tg.openTelegramLink("https://t.me/"+BOT+"?start=pay_"+b.dataset.plan);
-  });
+paywall.addEventListener("click", e=>{
+  if (e.target === paywall){ closePaywall(); return; }
+  const b = e.target.closest("[data-plan]");
+  if (b) buyPlan(b.dataset.plan);
 });
+document.getElementById("bar-premium").addEventListener("click", openPaywall);
 document.getElementById("pw-restore").addEventListener("click", async ()=>{
-  // TODO v2: перевірка покупки через бекенд (initData → API бота), а не довіра на слово
-  S.premium = true; await saveState(); closePaywall(); showTab(activeTab);
-  tg.showAlert("Дякуємо! Преміум увімкнено ✨ (v1: перевірка оплати — у наступній версії)");
+  if (tg.isShim){
+    // режим перегляду поза Telegram: демо-розблокування, оплати тут немає
+    S.premium = !S.premium; await saveState(); closePaywall(); showTab(activeTab);
+    tg.showAlert(S.premium ? "Демо: преміум увімкнено (у Telegram статус перевіряє API бота)" : "Демо: преміум вимкнено");
+    return;
+  }
+  const active = await refreshPremium(false);
+  if (active) closePaywall();
 });
 
 /* ═══ онбординг і старт ═══ */
@@ -863,12 +1148,20 @@ document.getElementById("ob-go").addEventListener("click", async ()=>{
   if (!birth){ tg.showAlert("Обери дату народження — без неї зірки мовчать ✨"); return; }
   S.name = name; S.birth = birth;
   await saveState();
+  sendEvent("onboarded");
   tg.HapticFeedback.notificationOccurred("success");
   startApp();
 });
 
 (async function boot(){
   await loadState();
+  if (tg.isShim && !S.srv){
+    // демо-дані для перегляду поза Telegram (у Telegram все приходить з /api/status)
+    S.srv = {premium:false, love_until:null, payments_paused:false, founding_left:37,
+             founding_stars:649, date_x:"2026-12-09", love_stars:49,
+             prices:{week:59, month:149, year:1299}};
+  }
+  if (tg.initData) refreshPremium(true); // тихо синхронізуємо статус оплати з ботом
   if (S.name && S.birth){ startApp(); return; }
   const tgName = tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.first_name;
   if (tgName) document.getElementById("ob-name").value = tgName;
