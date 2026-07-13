@@ -381,7 +381,7 @@ const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : 
 tg.ready(); tg.expand();
 try{ tg.setHeaderColor("#0e0b28"); tg.setBackgroundColor("#0e0b28"); }catch(e){}
 
-const BOT = "yourzirochka_bot"; // TODO: реальний @username бота
+const BOT = "yourzirochka_bot"; // зареєстрований у @BotFather
 const API = ""; // TODO: базовий URL API бота (bot.py, порт 8080), напр. "https://api.zirochka.app"; "" = той самий origin
 
 /* ═══ оплата: API бота + нативний openInvoice ═══ */
@@ -456,6 +456,106 @@ async function buyPlan(plan){
     /* API недоступний — фолбек на інвойс у чаті з ботом */
   }
   tg.openTelegramLink("https://t.me/" + BOT + "?start=pay_" + plan);
+}
+
+/* ═══ шеринг з картинкою: SVG-картка → PNG → бот (чат + story-URL) ═══ */
+function refLink(){
+  const uid = tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id;
+  return "https://t.me/" + BOT + (uid ? "?start=ref_" + uid : "?start=compat_share");
+}
+function svgSafe(s){
+  // астральні емодзі можуть не розтеризуватись у canvas — прибираємо (знаки зодіаку BMP лишаються)
+  return String(s).replace(/[\u{1F000}-\u{1FFFF}]/gu, "").replace(/\s+/g, " ").trim();
+}
+function wrapLines(s, max){
+  const words = String(s).split(" "), lines = [];
+  let cur = "";
+  for (const w of words){
+    if (cur && (cur + " " + w).length > max){ lines.push(cur); cur = w; }
+    else cur = cur ? cur + " " + w : w;
+  }
+  if (cur) lines.push(cur);
+  return lines.slice(0, 3);
+}
+function sprinkle(seedStr, n){
+  const r = rng(hash(seedStr));
+  let s = "";
+  for (let i = 0; i < n; i++){
+    s += `<circle cx="${(r()*1080).toFixed(0)}" cy="${(r()*1920).toFixed(0)}" r="${(0.8+r()*2.4).toFixed(1)}" fill="${r()<0.7?AC.cream:AC.gold}" opacity="${(0.12+r()*0.45).toFixed(2)}"/>`;
+  }
+  return s;
+}
+function cardFrame(inner, seed){
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
+  <rect width="1080" height="1920" fill="#0e0b28"/>
+  <circle cx="540" cy="960" r="720" fill="${AC.gold}" opacity="0.05"/>
+  <circle cx="540" cy="960" r="430" fill="${AC.lav}" opacity="0.05"/>
+  ${sprinkle(seed, 70)}
+  <rect x="40" y="40" width="1000" height="1840" rx="48" fill="none" stroke="${AC.gold}" stroke-opacity="0.5" stroke-width="3"/>
+  <rect x="64" y="64" width="952" height="1792" rx="36" fill="none" stroke="${AC.gold}" stroke-opacity="0.22" stroke-width="2"/>
+  ${inner}
+  <text x="540" y="1640" text-anchor="middle" font-family="Georgia,serif" font-size="38" fill="${AC.cream}" opacity="0.7">Зірочка · щоденний гороскоп і таро українською</text>
+  <text x="540" y="1710" text-anchor="middle" font-family="Georgia,serif" font-size="44" fill="${AC.gold}">@${BOT}</text>
+  <text x="540" y="1836" text-anchor="middle" font-family="Georgia,serif" font-size="28" fill="${AC.cream}" opacity="0.55">Розважальний контент · 18+</text>
+</svg>`;
+}
+function compatCardSVG(c){
+  const nameLine = svgSafe(c.n1) + " " + c.g1 + "  +  " + svgSafe(c.n2) + " " + c.g2;
+  const nfs = nameLine.length > 26 ? 42 : 54;
+  const verdictLines = wrapLines(svgSafe(c.verdict), 32);
+  const inner = `
+  <text x="540" y="330" text-anchor="middle" font-family="Georgia,serif" font-size="40" fill="${AC.gold}" opacity="0.9">✦ ✧ ✦</text>
+  <text x="540" y="432" text-anchor="middle" font-family="Georgia,serif" font-size="46" fill="${AC.cream}" opacity="0.85">Сумісність за зірками</text>
+  <text x="540" y="586" text-anchor="middle" font-family="Georgia,serif" font-size="${nfs}" fill="${AC.cream}">${esc(nameLine)}</text>
+  <text x="540" y="1070" text-anchor="middle" font-family="Georgia,serif" font-weight="bold" font-size="290" fill="${AC.gold}">${c.pct}%</text>
+  ${verdictLines.map((ln,i)=>`<text x="540" y="${1230+i*66}" text-anchor="middle" font-family="Georgia,serif" font-size="48" fill="${AC.cream}" opacity="0.92">${esc(ln)}</text>`).join("")}`;
+  return cardFrame(inner, "compat|" + c.n1 + c.n2 + c.pct);
+}
+function dayCardSVG(arcIdx){
+  const inner_art = cardArt(arcIdx).replace(/<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "");
+  const name = ARCANA[arcIdx][1];
+  const meaningLines = wrapLines(svgSafe(ARCANA[arcIdx][3]), 44);
+  const inner = `
+  <text x="540" y="240" text-anchor="middle" font-family="Georgia,serif" font-size="40" fill="${AC.gold}" opacity="0.9">✦ ✧ ✦</text>
+  <text x="540" y="336" text-anchor="middle" font-family="Georgia,serif" font-size="52" fill="${AC.cream}" opacity="0.9">Моя карта дня</text>
+  <g transform="translate(240, 400) scale(6)">${inner_art}</g>
+  <text x="540" y="1478" text-anchor="middle" font-family="Georgia,serif" font-size="58" fill="${AC.gold}">«${esc(name)}»</text>
+  ${meaningLines.map((ln,i)=>`<text x="540" y="${1548+i*52}" text-anchor="middle" font-family="Georgia,serif" font-size="40" fill="${AC.cream}" opacity="0.9">${esc(ln)}</text>`).join("")}`;
+  return cardFrame(inner, "day|" + arcIdx + "|" + todayStr());
+}
+async function svgToPngB64(svg){
+  const blobUrl = URL.createObjectURL(new Blob([svg], {type: "image/svg+xml;charset=utf-8"}));
+  try{
+    const img = await new Promise((res, rej)=>{
+      const i = new Image();
+      i.onload = ()=>res(i); i.onerror = ()=>rej(new Error("svg load"));
+      i.src = blobUrl;
+    });
+    const c = document.createElement("canvas");
+    c.width = 1080; c.height = 1920;
+    c.getContext("2d").drawImage(img, 0, 0, 1080, 1920);
+    const png = await new Promise((res, rej)=>c.toBlob(b=>b?res(b):rej(new Error("toBlob")), "image/png"));
+    const buf = new Uint8Array(await png.arrayBuffer());
+    let bin = "";
+    for (let i = 0; i < buf.length; i += 0x8000)
+      bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+    return btoa(bin);
+  } finally { URL.revokeObjectURL(blobUrl); }
+}
+async function shareWithImage(kind, svg, caption, fallback){
+  // картка летить: (1) фото в чат з ботом — пересилай куди завгодно;
+  // (2) якщо клієнт уміє shareToStory — одразу в сторіс. Фолбек — текстовий шеринг.
+  try{
+    if (!tg.initData) throw new Error("outside telegram");
+    const b64 = await svgToPngB64(svg);
+    const resp = await apiFetch("/api/share_card", {method: "POST",
+      body: JSON.stringify({kind: kind, png: b64, caption: caption, os: tg.platform || "unknown"})});
+    let storied = false;
+    if (resp.story_url && typeof tg.shareToStory === "function"){
+      try{ tg.shareToStory(resp.story_url, {text: caption + "\n" + refLink()}); storied = true; }catch(e){}
+    }
+    if (!storied) tg.showAlert("Картку надіслано тобі в чат із ботом — пересилай подругам 💌");
+  }catch(err){ fallback(); }
 }
 
 /* ═══ сховище: CloudStorage → localStorage fallback ═══ */
@@ -695,6 +795,7 @@ const VERDICTS = [
 ];
 
 /* ═══ стан ═══ */
+let lastCompat = null; // останній результат сумісності — для шер-картки
 let S = {
   name:"", birth:"", premium:false,
   srv:null,            // останній /api/status: love_until, founding_left, prices, paused…
@@ -833,6 +934,7 @@ function renderToday(){
       <p class="sub">${flipped?"Твоя карта на сьогодні:":"Одна карта щодня — безкоштовно. Торкнись, щоб відкрити."}</p>
       <div class="deck-row mt12">${tCardHTML(cardId, arcIdx, flipped, false, "")}</div>
       <div class="tmeaning ${flipped?"":"hidden"}" id="day-meaning"><b>${esc(arc[1])}.</b> ${esc(arc[3])}</div>
+      ${flipped?`<button class="btn btn-ghost mt8" id="share-day">Поділитися карткою 💫</button>`:""}
     </div>
     <div class="block" id="natal-block">
       <h3>Натальна карта 🌌</h3>
@@ -1008,11 +1110,20 @@ view.addEventListener("click", e=>{
   }
   if (e.target.id === "natal-go"){ loadNatal(); return; }
   if (e.target.id === "buy-love"){ sendEvent("love_click", "love"); buyPlan("love"); return; }
+  if (e.target.id === "share-day"){
+    const t = todayStr();
+    const arcIdx = Math.floor(rng(hash(t+"|"+S.birth+"|day"))()*ARCANA.length);
+    const caption = "«" + ARCANA[arcIdx][1] + "» — моя карта дня у Зірочці ✨";
+    sendEvent("share_day", "day");
+    shareWithImage("day", dayCardSVG(arcIdx), caption, ()=>{
+      tg.openTelegramLink("https://t.me/share/url?url=" + encodeURIComponent(refLink())
+        + "&text=" + encodeURIComponent(caption + " Спробуй свою:"));
+    });
+    return;
+  }
   if (e.target.id === "cp-invite"){
     sendEvent("share_compat", "invite");
-    const uid = tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id;
-    const link = "https://t.me/" + BOT + (uid ? "?start=ref_" + uid : "?start=compat_share");
-    tg.openTelegramLink("https://t.me/share/url?url=" + encodeURIComponent(link)
+    tg.openTelegramLink("https://t.me/share/url?url=" + encodeURIComponent(refLink())
       + "&text=" + encodeURIComponent("Приєднуйся до Зірочки — перевіримо нашу сумісність за зірками ✨"));
     return;
   }
@@ -1040,6 +1151,7 @@ view.addEventListener("click", e=>{
     const jitter = Math.floor(rng(hash([S.birth,bEl.value].sort().join("|")))()*13)-6;
     const pct = Math.max(48, Math.min(99, base+jitter));
     const verdict = VERDICTS.find(v=>pct>=v[0])[1];
+    lastCompat = {n1: S.name, g1: s1.g, n2: friendName, g2: s2.g, pct: pct, verdict: verdict};
     const shareText = `✨ Ми з ${friendName} сумісні на ${pct}%! ${verdict}\nПеревір свою сумісність у Зірочці:`;
     document.getElementById("cp-result").innerHTML = `
       <div class="compat-result pop">
@@ -1054,8 +1166,13 @@ view.addEventListener("click", e=>{
 
   const share = e.target.closest("[data-share]");
   if (share){
-    const url = "https://t.me/"+BOT+"?start=compat_share";
-    tg.openTelegramLink("https://t.me/share/url?url="+encodeURIComponent(url)+"&text="+encodeURIComponent(share.dataset.share));
+    const fallback = ()=>tg.openTelegramLink("https://t.me/share/url?url="
+      + encodeURIComponent(refLink()) + "&text=" + encodeURIComponent(share.dataset.share));
+    if (lastCompat){
+      sendEvent("share_compat", "card");
+      shareWithImage("compat", compatCardSVG(lastCompat),
+        `✨ Ми з ${lastCompat.n2} сумісні на ${lastCompat.pct}%! ${lastCompat.verdict}`, fallback);
+    } else fallback();
     return;
   }
 });
@@ -1090,7 +1207,7 @@ function renderPaywall(){
     f.innerHTML = `
       <button class="plan-card founding" data-plan="founding">
         <span><span class="pname">🌟 Founding-рік</span><br>
-        <span class="pdesc">Ціна засновниці · лишилось ${srv.founding_left} з 50${srv.date_x ? " · не запустимось до " + esc(srv.date_x) + " — повернемо Stars" : ""}</span></span>
+        <span class="pdesc">Ціна засновниці · лишилось ${srv.founding_left} з ${srv.founding_limit || 50}${srv.date_x ? " · не запустимось до " + esc(srv.date_x) + " — повернемо Stars" : ""}</span></span>
         <span class="pprice">${srv.founding_stars || 649} ⭐</span>
       </button>`;
   } else {
